@@ -32,6 +32,9 @@
       },
       "preset_goto": {
         "name": "Go to preset"
+      },
+      "take_screenshot": {
+        "name": "Take Screenshot"
       }
     },
     "event": {
@@ -45,6 +48,9 @@
     "image": {
       "last_event": {
         "name": "Last event"
+      },
+      "last_screen": {
+        "name": "Last screen"
       }
     },
     "select": {
@@ -57,7 +63,8 @@
           "default": "Default",
           "auto": "Automatic",
           "stored": "Stored",
-          "live": "Live"
+          "live": "Live",
+          "screen": "Last screen (last watched picture)"
         }
       }
     },

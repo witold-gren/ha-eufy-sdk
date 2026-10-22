@@ -32,6 +32,9 @@
       },
       "preset_goto": {
         "name": "Ga naar voorinstelling"
+      },
+      "take_screenshot": {
+        "name": "Screenshot maken"
       }
     },
     "event": {
@@ -45,6 +48,9 @@
     "image": {
       "last_event": {
         "name": "Laatste gebeurtenis"
+      },
+      "last_screen": {
+        "name": "Laatste beeld"
       }
     },
     "select": {
@@ -57,7 +63,8 @@
           "default": "Standaard",
           "auto": "Automatisch",
           "stored": "Opgeslagen",
-          "live": "Live"
+          "live": "Live",
+          "screen": "Laatste beeld (laatst bekeken beeld)"
         }
       }
     },

@@ -32,6 +32,9 @@
       },
       "preset_goto": {
         "name": "Vai al preset"
+      },
+      "take_screenshot": {
+        "name": "Scatta screenshot"
       }
     },
     "event": {
@@ -45,6 +48,9 @@
     "image": {
       "last_event": {
         "name": "Ultimo evento"
+      },
+      "last_screen": {
+        "name": "Ultima schermata"
       }
     },
     "select": {
@@ -57,7 +63,8 @@
           "default": "Predefinita",
           "auto": "Automatica",
           "stored": "Salvata",
-          "live": "Dal vivo"
+          "live": "Dal vivo",
+          "screen": "Ultima schermata (ultima immagine guardata)"
         }
       }
     },
