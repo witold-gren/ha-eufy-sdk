@@ -258,6 +258,23 @@ def _staleness_window_ms(record: dict) -> int | None:
     return None
 
 
+def _stale_offline(rec: dict, last_seen: float, now_ms: float | None) -> bool:
+    """Whether `lastSeenMs` proves this device offline (rule 3 of `device_offline`)."""
+    window = _staleness_window_ms(rec)
+    if window is None:
+        return False
+    now = time.time() * 1000 if now_ms is None else now_ms
+    if (now - last_seen) <= window:
+        return False
+    if rec.get("power") != "battery":
+        return True
+    # A battery camera's `lastSeenMs` is no heartbeat: a HomeBase-attached camera's
+    # stays put for weeks while it works through the HomeBase, and a sleeping 4G
+    # camera can go hours without one. Staleness alone proves nothing for it, so
+    # the legacy flag decides.
+    return rec.get("state", {}).get("deviceStatus") is False
+
+
 def device_offline(record: dict | None, now_ms: float | None = None) -> bool:
     """
     Whether this device should be treated as offline.
@@ -268,7 +285,8 @@ def device_offline(record: dict | None, now_ms: float | None = None) -> bool:
     1. an explicit vendor availability observation, when seen, is authoritative;
     2. an active live feed proves the device is reachable right now;
     3. otherwise staleness — `lastSeenMs` older than this device class's window
-       (and classes that are silent by design never go offline this way);
+       (and classes that are silent by design never go offline this way); a stale
+       battery camera falls back to `deviceStatus`, a recent report still wins;
     4. only when none of those facts are present (an older bridge) does the legacy
        `deviceStatus` flag still decide, so behaviour is unchanged until the bridge
        forwards the facts.
@@ -287,11 +305,7 @@ def device_offline(record: dict | None, now_ms: float | None = None) -> bool:
 
     last_seen = rec.get("lastSeenMs")
     if isinstance(last_seen, (int, float)) and not isinstance(last_seen, bool):
-        window = _staleness_window_ms(rec)
-        if window is None:
-            return False
-        now = time.time() * 1000 if now_ms is None else now_ms
-        return (now - last_seen) > window
+        return _stale_offline(rec, last_seen, now_ms)
 
     # No liveness facts at all: an older bridge — fall back to the legacy flag.
     if availability is None:

@@ -113,15 +113,28 @@ class LivenessFactTests(unittest.TestCase):
         }
         self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
-    def test_a_long_silent_battery_camera_is_offline(self):
-        # #133: powered off — no report for well over the battery-camera window.
+    def test_a_long_silent_battery_camera_follows_devicestatus(self):
+        # #133: powered off — no report for well over the battery-camera window and
+        # the cloud flags it offline.
         rec = {
             "codec": "camera",
             "power": "battery",
             "lastSeenMs": self.NOW - 7 * 60 * 60 * 1000,
-            "state": {"deviceStatus": True},
+            "state": {"deviceStatus": False},
         }
         self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_homebase_battery_camera_with_stale_last_seen_stays_online(self):
+        # A HomeBase-attached eufyCam (T8140) / doorbell (T8210) works through the
+        # HomeBase while its lastSeenMs stays weeks old; so can a sleeping 4G camera.
+        for silent_ms in (7 * 60 * 60 * 1000, 19 * 24 * 60 * 60 * 1000):
+            rec = {
+                "codec": "camera",
+                "power": "battery",
+                "lastSeenMs": self.NOW - silent_ms,
+                "state": {"deviceStatus": True},
+            }
+            self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
     def test_a_mains_camera_uses_the_short_window(self):
         rec = {
