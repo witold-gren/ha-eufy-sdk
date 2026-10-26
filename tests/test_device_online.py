@@ -136,19 +136,35 @@ class LivenessFactTests(unittest.TestCase):
             }
             self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
-    def test_a_mains_camera_uses_the_short_window(self):
+    def test_a_stale_mains_camera_follows_devicestatus(self):
+        # A wired indoor camera (T8400) without a live session: lastSeenMs is hours
+        # old while it works. It reports no deviceStatus, so it stays online.
         rec = {
             "codec": "camera",
             "power": "wired",
-            "lastSeenMs": self.NOW - 45 * 60 * 1000,
+            "lastSeenMs": self.NOW - 8 * 60 * 60 * 1000,
         }
-        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+        rec_flagged = {**rec, "state": {"deviceStatus": False}}
+        self.assertTrue(device_offline(rec_flagged, now_ms=self.NOW))
         rec_fresh = {
             "codec": "camera",
             "power": "wired",
             "lastSeenMs": self.NOW - 60_000,
+            "state": {"deviceStatus": False},
         }
         self.assertFalse(device_offline(rec_fresh, now_ms=self.NOW))
+
+    def test_a_homebase_with_an_idle_session_stays_online(self):
+        # HomeBase 2 (T8010) at night: the P2P session closed, lastSeenMs is hours
+        # old, no deviceStatus. Marking it offline made the morning arming
+        # (select.select_option) a silent no-op.
+        rec = {
+            "codec": "station",
+            "lastSeenMs": self.NOW - 13 * 60 * 60 * 1000,
+            "state": {},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
     def test_a_sensor_is_never_offline_from_staleness(self):
         # Silent by design — days without a report is healthy.

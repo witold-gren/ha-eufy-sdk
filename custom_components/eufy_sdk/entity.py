@@ -266,12 +266,11 @@ def _stale_offline(rec: dict, last_seen: float, now_ms: float | None) -> bool:
     now = time.time() * 1000 if now_ms is None else now_ms
     if (now - last_seen) <= window:
         return False
-    if rec.get("power") != "battery":
-        return True
-    # A battery camera's `lastSeenMs` is no heartbeat: a HomeBase-attached camera's
-    # stays put for weeks while it works through the HomeBase, and a sleeping 4G
-    # camera can go hours without one. Staleness alone proves nothing for it, so
-    # the legacy flag decides.
+    # `lastSeenMs` is no heartbeat: a HomeBase's stays put for hours while its P2P
+    # session is idle (the keypad and arming keep working), a wired indoor camera's
+    # likewise, a HomeBase-attached camera's for weeks, and a sleeping 4G camera
+    # can go hours without one. Staleness alone proves nothing, so the legacy flag
+    # decides (a device that does not report it stays online).
     return rec.get("state", {}).get("deviceStatus") is False
 
 
@@ -285,8 +284,9 @@ def device_offline(record: dict | None, now_ms: float | None = None) -> bool:
     1. an explicit vendor availability observation, when seen, is authoritative;
     2. an active live feed proves the device is reachable right now;
     3. otherwise staleness — `lastSeenMs` older than this device class's window
-       (and classes that are silent by design never go offline this way); a stale
-       battery camera falls back to `deviceStatus`, a recent report still wins;
+       (and classes that are silent by design never go offline this way); a
+       recent report proves the device online, a stale one falls back to
+       `deviceStatus`;
     4. only when none of those facts are present (an older bridge) does the legacy
        `deviceStatus` flag still decide, so behaviour is unchanged until the bridge
        forwards the facts.
