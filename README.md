@@ -84,6 +84,22 @@ Default works with the bare snapshot endpoint. Auto, Stored, and Live require a 
 containing [request-mode support](https://github.com/mega-yfue/ha-eufy-sdk-bridge/pull/79). Older
 bridge versions ignore the `mode` query and therefore use Default behaviour.
 
+## Recording the live view
+
+Each battery camera gets a **Record live view** switch (under *Configuration*, entity
+`switch.<camera>_record_live`). It is **off for every camera** until you turn it on. While it is
+on, every live view of that camera is saved as an mp4 by the bridge — whoever opens it: a
+dashboard card, the camera's more-info dialog, HomeKit. The bridge only copies a stream that is
+already running and never wakes the camera for it, so it costs no extra battery. The switch's
+`recording` attribute is `true` while a viewing is being recorded.
+
+Files go to the bridge's `LIVE_RECORDING_DIR` (default `/media/eufy`) as
+`<serial>/<YYYY-MM-DD>/<HHMMSS>-<HHMMSS>.mp4`, start and end in the bridge's local time, so they
+show up under **Media → Local media**. With the add-on, `media` must be mapped read-write; a
+viewing shorter than about 2 s is not kept, and old recordings are not pruned. The switch appears
+only with a bridge that advertises `canRecordLive` (see the bridge's
+[WS protocol](https://github.com/mega-yfue/ha-eufy-sdk-bridge/blob/dev/docs/ws-protocol.md)).
+
 ## Migrating from `fuatakgun/eufy_security`
 
 Two things that cost real time when moving an existing setup across. Neither is a bug — they are

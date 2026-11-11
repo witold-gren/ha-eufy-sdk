@@ -76,7 +76,10 @@ class CameraViewTests(unittest.IsolatedAsyncioTestCase):
         cameras, _ = await setup_camera()
         self.assertEqual(
             [await cam.stream_source() for cam in cameras],
-            [f"rtsp://bridge:8554/{SN}", f"rtsp://bridge:8554/{SN}_view_1"],
+            [
+                f"rtsp://bridge:8554/{SN}?video&audio=aac&audio=opus",
+                f"rtsp://bridge:8554/{SN}_view_1",
+            ],
         )
 
     async def test_selected_snapshot_retains_view_and_all_acquisition_policies(
@@ -120,7 +123,8 @@ class CameraViewTests(unittest.IsolatedAsyncioTestCase):
                 cameras, _ = await setup_camera(views=views)
                 self.assertEqual([cam.unique_id for cam in cameras], [f"{SN}_camera"])
                 self.assertEqual(
-                    await cameras[0].stream_source(), f"rtsp://bridge:8554/{SN}"
+                    await cameras[0].stream_source(),
+                    f"rtsp://bridge:8554/{SN}?video&audio=aac&audio=opus",
                 )
 
     async def test_inventory_is_not_derived_from_model_or_view_order(self) -> None:

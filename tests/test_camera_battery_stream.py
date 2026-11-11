@@ -64,7 +64,8 @@ class BatteryCameraStreamTests(unittest.IsolatedAsyncioTestCase):
     async def test_every_camera_keeps_the_rtsp_restream(self):
         for sn in (BATTERY, MAINS):
             self.assertEqual(
-                await _camera(sn).stream_source(), f"rtsp://10.0.0.5:8554/{sn}"
+                await _camera(sn).stream_source(),
+                f"rtsp://10.0.0.5:8554/{sn}?video&audio=aac&audio=opus",
             )
 
 

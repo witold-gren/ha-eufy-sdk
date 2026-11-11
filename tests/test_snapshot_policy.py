@@ -160,7 +160,8 @@ class SnapshotPolicyTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(session.urls, [expected_url])
                 self.assertEqual(
-                    await camera.stream_source(), "rtsp://bridge:8554/camera-a"
+                    await camera.stream_source(),
+                    "rtsp://bridge:8554/camera-a?video&audio=aac&audio=opus",
                 )
 
     async def test_two_camera_selector_and_request_state_are_isolated(self) -> None:

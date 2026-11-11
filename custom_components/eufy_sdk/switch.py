@@ -6,10 +6,13 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
+from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 
 from .bespoke import BITFIELD_SWITCHES
+from .const import EVENT_TYPE
 from .entity import (
+    EufySdkDeviceEntity,
     EufySdkPropertyEntity,
     EufySolixEntity,
     classify,
@@ -19,9 +22,11 @@ from .entity import (
 )
 from .light import LIGHT_OWNED_PROPS
 from .lock import LOCK_OWNED_PROPS
+from .preload import on_battery_power
+from .sd_card import sd_auto_switches
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import Event, HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .coordinator import EufySdkDataUpdateCoordinator
@@ -61,6 +66,18 @@ async def async_setup_entry(
                     )
                     for key, bit in bf["bits"].items()
                 )
+
+    # "Record live view" per battery camera, gated on the bridge's `canRecordLive`: an
+    # older bridge has no `recording.set`, so the switch could only fail. A mains camera
+    # is left out: it can stream around the clock (an NVR), which is not a viewing.
+    entities.extend(
+        EufyRecordLiveSwitch(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("canRecordLive") and on_battery_power(dev)
+    )
+
+    # "Auto-copy recordings" per camera with kept recordings (`canSdRecordings`).
+    entities.extend(sd_auto_switches(coordinator))
 
     # Anker Solix (separate account): a Solarbank's ambient light — a standalone switch
     # that reflects the device state (ambientLightOn, decoded from the ff09 telemetry).
@@ -109,6 +126,86 @@ class EufySolixLightSwitch(EufySolixEntity, SwitchEntity):
         """Turn the ambient light off (optimistic; telemetry confirms shortly)."""
         await self.client.set_solix_light(self._sn, on=False)
         self._solix_values["ambientLightOn"] = False
+        self.async_write_ha_state()
+
+
+class EufyRecordLiveSwitch(EufySdkDeviceEntity, SwitchEntity):
+    """
+    Record this camera's live view, kept by the bridge as mp4 files.
+
+    A bridge setting (`recording.set`), not a camera property: the bridge copies the
+    frames of every live view someone opens anyway (a dashboard, the more-info dialog,
+    HomeKit) and never opens a stream for it, so it costs the battery nothing. Off
+    until switched on. The state comes from the bridge's `recording.list`, read with
+    each coordinator update; the `recording` attribute follows the bridge's
+    `recordingState` event, so it shows when a viewing is being recorded.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:record-rec"
+    _attr_translation_key = "record_live"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a camera serial."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_record_live"
+        self._recording: bool | None = None  # last recordingState event; None → poll
+
+    @property
+    def suggested_object_id(self) -> str:
+        """`switch.<camera>_record_live`, whatever language Home Assistant runs in."""
+        return "record_live"
+
+    @property
+    def is_on(self) -> bool:
+        """On when the bridge records this camera's live view."""
+        return self._sn in self.coordinator.recording_enabled
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Whether a viewing is being recorded right now."""
+        recording = self._recording
+        if recording is None:
+            recording = self._sn in self.coordinator.recording_active
+        return {"recording": recording}
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the bridge's recordingState events for this camera."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self.hass.bus.async_listen(EVENT_TYPE, self._handle_event))
+
+    @callback
+    def _handle_event(self, event: Event) -> None:
+        """Track this camera's recordingState (on/off)."""
+        data = event.data
+        if data.get("event") != "recordingState" or data.get("deviceSn") != self._sn:
+            return
+        self._recording = bool(data.get("active"))
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Take a fresh `recording.list` over an older event."""
+        self._recording = None
+        super()._handle_coordinator_update()
+
+    async def async_turn_on(self, **_: Any) -> None:
+        """Record this camera's live view from now on."""
+        await self._set(enabled=True)
+
+    async def async_turn_off(self, **_: Any) -> None:
+        """Stop recording (a recording in progress is kept)."""
+        await self._set(enabled=False)
+
+    async def _set(self, *, enabled: bool) -> None:
+        """Ask the bridge and show what it answered."""
+        enabled = await self.client.set_recording(self._sn, enabled=enabled)
+        current = set(self.coordinator.recording_enabled)
+        if enabled:
+            current.add(self._sn)
+        else:
+            current.discard(self._sn)
+        self.coordinator.recording_enabled = frozenset(current)
         self.async_write_ha_state()
 
 

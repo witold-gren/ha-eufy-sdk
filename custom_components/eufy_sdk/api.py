@@ -363,6 +363,24 @@ class EufySdkApiClient:
         """
         return int((await self.rpc("screen.take", timeout=45, sn=sn)).get("bytes", 0))
 
+    async def list_recordings(self) -> dict[str, list[str]]:
+        """
+        Return which cameras have their live view recorded, and which record now.
+
+        `{"enabled": [sn, ...], "active": [sn, ...]}`. Only a bridge that sets
+        `canRecordLive` on its cameras answers; an older one fails the command.
+        """
+        reply = await self.rpc("recording.list")
+        return {
+            "enabled": list(reply.get("enabled") or []),
+            "active": list(reply.get("active") or []),
+        }
+
+    async def set_recording(self, sn: str, *, enabled: bool) -> bool:
+        """Switch live-view recording on or off for a camera; returns the new state."""
+        reply = await self.rpc("recording.set", deviceSn=sn, enabled=enabled)
+        return bool(reply.get("enabled"))
+
     async def list_solix_devices(self) -> list[dict[str, Any]]:
         """Return the Anker Solix devices (empty if Solix isn't configured)."""
         # Each: {sn, productCode, name, category, capabilities, values, firmware}.

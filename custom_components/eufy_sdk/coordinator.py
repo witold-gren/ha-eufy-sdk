@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from homeassistant.core import callback
@@ -30,6 +31,13 @@ class EufySdkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
     # reassigned per-update, so the class-level {} is only an initial fallback. Live
     # values arrive via `solixReading` events.
     solix_devices: ClassVar[dict[str, dict]] = {}
+
+    # Live-view recording (bridge `recording.list`): the cameras switched on for it,
+    # and those recording right now. Read only from a bridge that advertises
+    # `canRecordLive`; reassigned per update, so the class-level sets are only an
+    # initial fallback, like `solix_devices`.
+    recording_enabled: ClassVar[frozenset[str]] = frozenset()
+    recording_active: ClassVar[frozenset[str]] = frozenset()
 
     # One failed poll marks every entity `unavailable` until the NEXT poll: up to a
     # full `update_interval` of blackout for a single transient hiccup (a wedged WS,
@@ -103,5 +111,11 @@ class EufySdkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             self.solix_devices = {d["sn"]: d for d in solix if d.get("sn")}
         except EufySdkApiClientError:
             self.solix_devices = getattr(self, "solix_devices", {})
+        # Recording is optional too: a hiccup keeps the last known switch states.
+        if any(d.get("canRecordLive") for d in devices):
+            with contextlib.suppress(EufySdkApiClientError):
+                recordings = await client.list_recordings()
+                self.recording_enabled = frozenset(recordings["enabled"])
+                self.recording_active = frozenset(recordings["active"])
         self._clear_fast_retry()
         return {d["sn"]: d for d in devices if d.get("sn")}

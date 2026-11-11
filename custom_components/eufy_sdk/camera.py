@@ -20,6 +20,7 @@ from .const import (
 )
 from .entity import device_offline
 from .preload import async_check_preload, on_battery_power
+from .sd_card import can_sd, sd_recordings_attribute
 from .snapshot_policy import snapshot_url
 
 if TYPE_CHECKING:
@@ -31,6 +32,9 @@ if TYPE_CHECKING:
 
     from .coordinator import EufySdkDataUpdateCoordinator
     from .data import EufySdkConfigEntry
+
+# The tracks asked of the bridge's go2rtc: video, AAC for HLS and Opus for WebRTC.
+LIVE_AUDIO_QUERY = "?video&audio=aac&audio=opus"
 
 
 async def async_setup_entry(
@@ -116,9 +120,26 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
             )
         )
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Where a dashboard finds the recordings the camera or its HomeBase keeps."""
+        if self._view != 0 or not can_sd(self.coordinator.data.get(self._sn)):
+            return None
+        return {"sd_recordings": sd_recordings_attribute()}
+
     async def stream_source(self) -> str:
-        """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""
-        return f"rtsp://{self._host}:{self._rtsp_port}/{self._stream_id}"
+        """
+        Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work.
+
+        The primary view asks for the bridge's Opus track next to AAC. Without it
+        the RTSP answer carries AAC only, and Home Assistant's go2rtc has to
+        transcode the sound for WebRTC with an ffmpeg of its own, which gives up
+        while a battery camera wakes (~12 s): the live view then has no sound.
+        AAC stays first for the stream component (HLS). A bridge without live
+        audio answers with the video alone.
+        """
+        url = f"rtsp://{self._host}:{self._rtsp_port}/{self._stream_id}"
+        return f"{url}{LIVE_AUDIO_QUERY}" if self._view == 0 else url
 
     async def async_create_stream(self) -> Stream | None:
         """

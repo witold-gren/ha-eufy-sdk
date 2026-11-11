@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.const import Platform
 from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
 from homeassistant.loader import async_get_loaded_integration
@@ -37,6 +38,8 @@ from .const import (
 from .coordinator import EufySdkDataUpdateCoordinator
 from .data import EufySdkData
 from .property_sync import apply_property_changed_event
+from .sd_card import async_register_sd_card
+from .talk import async_register_talk
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -44,6 +47,7 @@ if TYPE_CHECKING:
 
     from homeassistant.core import CALLBACK_TYPE, HomeAssistant
     from homeassistant.helpers.device_registry import DeviceEntry
+    from homeassistant.helpers.typing import ConfigType
 
     from .data import EufySdkConfigEntry
 
@@ -125,6 +129,16 @@ def _apply_property_changed(
         coordinator.async_request_refresh(),
         f"{evt.get('property', 'property')} refresh",
     )
+
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa: ARG001
+    """Register what serves every entry: talking through a camera (talk.py)."""
+    async_register_talk(hass)
+    async_register_sd_card(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> bool:
